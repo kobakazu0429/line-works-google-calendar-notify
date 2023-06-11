@@ -15,7 +15,7 @@ import {
 import { getAuthToken, postText } from "../src/lineworks.js";
 
 const ENV_KEYS = [
-  "VERCEL_URL",
+  "HOST_URL",
   "WEB_HOOK_TOKEN",
   "GOOGLE_PRIVATE_KEY",
   "GOOGLE_CLIENT_EMAIL",
@@ -31,7 +31,7 @@ const ENV_KEYS = [
 
 interface MyEnv extends Env {
   Bindings: {
-    VERCEL_URL: string;
+    HOST_URL: string;
     WEB_HOOK_TOKEN: string;
     GOOGLE_PRIVATE_KEY: string;
     GOOGLE_CLIENT_EMAIL: string;
@@ -67,7 +67,7 @@ app.get("/cron", async (c) => {
     e.GOOGLE_PROJECT_NUMBER
   );
 
-  const base = "https://" + e.VERCEL_URL;
+  const base = e.HOST_URL;
   const pathname = "/api/calendar";
   const webhookUrl = new URL(pathname, base);
 
