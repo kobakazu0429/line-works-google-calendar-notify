@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { type calendar_v3 } from "googleapis/build/src/apis/calendar";
+import { convert } from "html-to-text";
 
 type Client = calendar_v3.Calendar;
 type Events = calendar_v3.Schema$Events;
@@ -128,9 +129,13 @@ export const format = (events: Events): string => {
         }
       })();
 
+      const description = event.description
+        ? convert(event.description, { wordwrap: false })
+        : "無し";
+
       return `「${event.summary}」が${status}されました
 時間: ${start} 〜 ${end}
-詳細: ${event.description ?? "無し"}
+詳細: ${description}
 編集者: ${event.creator?.displayName ?? event.creator?.email}`;
     })
     .join("\n\n");
