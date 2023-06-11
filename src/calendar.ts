@@ -98,7 +98,7 @@ export const watchStop = async (
 
 const dateFormatter = new Intl.DateTimeFormat("ja", {
   dateStyle: "medium",
-  timeStyle: "medium",
+  timeStyle: "short",
 });
 
 export const format = (events: Events): string => {
