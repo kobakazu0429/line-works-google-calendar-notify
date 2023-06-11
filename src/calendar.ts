@@ -105,9 +105,16 @@ export const format = (events: Events): string => {
   return events
     .items!.map((event) => {
       const status = event.status === "cancelled" ? "キャンセル" : "作成/更新";
-      const start =
-        event.start?.date ??
-        dateFormatter.format(new Date(event.start?.dateTime!));
+
+      const start = (() => {
+        if (event.start?.date) {
+          return event.start?.date;
+        } else {
+          const d = new Date(event.start?.dateTime!);
+          d.setHours(d.getHours() + 9);
+          return dateFormatter.format(d);
+        }
+      })();
 
       const end = (() => {
         if (event.end?.date) {
