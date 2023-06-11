@@ -67,10 +67,14 @@ app.get("/cron", async (c) => {
     e.GOOGLE_PROJECT_NUMBER
   );
 
+  const base = "https://" + e.VERCEL_URL;
+  const pathname = "/api/calendar";
+  const webhookUrl = new URL(pathname, base);
+
   await watchStart(
     $client,
     e.GOOGLE_CALENDAR_ID,
-    e.VERCEL_URL + "/api/calendar",
+    webhookUrl.toString(),
     e.WEB_HOOK_TOKEN
   );
 
