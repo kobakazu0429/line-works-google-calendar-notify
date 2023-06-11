@@ -108,8 +108,18 @@ export const format = (events: Events): string => {
       const start =
         event.start?.date ??
         dateFormatter.format(new Date(event.start?.dateTime!));
-      const end =
-        event.end?.date ?? dateFormatter.format(new Date(event.end?.dateTime!));
+
+      const end = (() => {
+        if (event.end?.date) {
+          const d = new Date(event.end?.date);
+          d.setDate(d.getDate() - 1);
+          return d.toISOString().slice(0, 10);
+        } else {
+          const d = new Date(event.end?.dateTime!);
+          d.setHours(d.getHours() + 9);
+          return dateFormatter.format(d);
+        }
+      })();
 
       return `「${event.summary}」が${status}されました
 時間: ${start} 〜 ${end}
