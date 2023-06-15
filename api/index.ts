@@ -82,7 +82,7 @@ app.get("/cron", async (c) => {
 });
 
 app.post("/calendar", async (c) => {
-  console.log(c.req.headers.entries());
+  console.log(JSON.stringify(c.req.headers.entries(), null, 2));
   const e = refineEnv(process.env);
 
   const xGoogChannelToken = c.req.headers.get("X-Goog-Channel-Token");
@@ -129,12 +129,16 @@ app.post("/calendar", async (c) => {
     for await (const removeId of removeIds) {
       const channel = await kv.get<Channel>(removeId);
       if (channel) {
-        await watchStop(
-          $client,
-          e.WEB_HOOK_TOKEN,
-          channel.resourceId,
-          channel.channelId
-        );
+        try {
+          await watchStop(
+            $client,
+            e.WEB_HOOK_TOKEN,
+            channel.resourceId,
+            channel.channelId
+          );
+        } catch (error) {
+          console.error(error);
+        }
       }
     }
     const expiration = new Date(xGoogChannelExpiration).getTime();
