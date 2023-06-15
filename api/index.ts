@@ -82,6 +82,7 @@ app.get("/cron", async (c) => {
 });
 
 app.post("/calendar", async (c) => {
+  console.log(c.req.headers.entries());
   const e = refineEnv(process.env);
 
   const xGoogChannelToken = c.req.headers.get("X-Goog-Channel-Token");
