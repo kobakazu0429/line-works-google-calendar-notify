@@ -136,6 +136,8 @@ app.post("/calendar", async (c) => {
             channel.resourceId,
             channel.channelId
           );
+          const result = await kv.del(removeId);
+          if (result === 0) throw new Error(`Not Found: ${removeId}`);
         } catch (error) {
           console.error(error);
         }
