@@ -12,7 +12,7 @@ import {
   refineNextSyncToken,
   type Channel,
 } from "../src/calendar.js";
-import { getAuthToken, postText } from "../src/lineworks.js";
+import { getAuthToken, postCalendar } from "../src/lineworks.js";
 
 const ENV_KEYS = [
   "HOST_URL",
@@ -170,16 +170,18 @@ app.post("/calendar", async (c) => {
       refineNextSyncToken(nextSyncToken)
     );
 
-    const text = format($list.data);
-
-    await postText(
-      e.LINEWORKS_BOT_ID,
-      e.LINEWORKS_CHANNEL_ID,
-      (
-        await token
-      ).access_token,
-      text
-    );
+    if ($list.data.items) {
+      for (const event of $list.data.items) {
+        await postCalendar(
+          e.LINEWORKS_BOT_ID,
+          e.LINEWORKS_CHANNEL_ID,
+          (
+            await token
+          ).access_token,
+          format(event)
+        );
+      }
+    }
 
     await kv.set(NEXT_SYNC_TOKEN_KEY, $list.data.nextSyncToken ?? "");
   }

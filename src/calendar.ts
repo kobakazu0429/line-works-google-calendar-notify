@@ -3,7 +3,7 @@ import { type calendar_v3 } from "googleapis/build/src/apis/calendar";
 import { convert } from "html-to-text";
 
 type Client = calendar_v3.Calendar;
-type Events = calendar_v3.Schema$Events;
+type Event = calendar_v3.Schema$Event;
 
 // 7 days
 export const DEFAULT_EXPIRES_DURATION_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
@@ -102,41 +102,40 @@ const dateFormatter = new Intl.DateTimeFormat("ja", {
   timeStyle: "short",
 });
 
-export const format = (events: Events): string => {
-  return events
-    .items!.map((event) => {
-      const status = event.status === "cancelled" ? "キャンセル" : "作成/更新";
+export const format = (event: Event) => {
+  const status = event.status === "cancelled" ? "キャンセル" : "作成/更新";
 
-      const start = (() => {
-        if (event.start?.date) {
-          return event.start?.date;
-        } else {
-          const d = new Date(event.start?.dateTime!);
-          d.setHours(d.getHours() + 9);
-          return dateFormatter.format(d);
-        }
-      })();
+  const start = (() => {
+    if (event.start?.date) {
+      return event.start?.date;
+    } else {
+      const d = new Date(event.start?.dateTime!);
+      d.setHours(d.getHours() + 9);
+      return dateFormatter.format(d);
+    }
+  })();
 
-      const end = (() => {
-        if (event.end?.date) {
-          const d = new Date(event.end?.date);
-          d.setDate(d.getDate() - 1);
-          return d.toISOString().slice(0, 10);
-        } else {
-          const d = new Date(event.end?.dateTime!);
-          d.setHours(d.getHours() + 9);
-          return dateFormatter.format(d);
-        }
-      })();
+  const end = (() => {
+    if (event.end?.date) {
+      const d = new Date(event.end?.date);
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().slice(0, 10);
+    } else {
+      const d = new Date(event.end?.dateTime!);
+      d.setHours(d.getHours() + 9);
+      return dateFormatter.format(d);
+    }
+  })();
 
-      const description = event.description
-        ? convert(event.description, { wordwrap: false })
-        : "無し";
+  const description = event.description
+    ? convert(event.description, { wordwrap: false })
+    : "無し";
 
-      return `「${event.summary}」が${status}されました
-時間: ${start} 〜 ${end}
-詳細: ${description}
-編集者: ${event.creator?.displayName ?? event.creator?.email}`;
-    })
-    .join("\n\n");
+  return {
+    name: event.summary ?? "不明",
+    status,
+    date: `${start} 〜 ${end}`,
+    description,
+    editor: `${event.creator?.displayName ?? event.creator?.email}`,
+  };
 };

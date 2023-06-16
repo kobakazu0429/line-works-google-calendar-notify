@@ -48,11 +48,11 @@ export const getAuthToken = async ({
   return data;
 };
 
-export const postText = async (
+const postMessages = async (
   botId: string,
   channelId: string,
   token: string,
-  text: string
+  content: any
 ) => {
   const res = await fetch(
     `https://www.worksapis.com/v1.0/bots/${botId}/channels/${channelId}/messages`,
@@ -63,12 +63,129 @@ export const postText = async (
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        content: {
-          type: "text",
-          text,
-        },
+        content,
       }),
     }
   );
   return res.status === 201;
+};
+
+export const postText = async (
+  botId: string,
+  channelId: string,
+  token: string,
+  text: string
+) => {
+  return postMessages(botId, channelId, token, { type: "text", text });
+};
+
+export const postCalendar = async (
+  botId: string,
+  channelId: string,
+  token: string,
+  event: {
+    name: string;
+    status: string;
+    date: string;
+    description: string;
+    editor: string;
+  }
+) => {
+  return postMessages(botId, channelId, token, {
+    type: "flex",
+    contents: {
+      type: "bubble",
+      size: "giga",
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: `${event.name} (${event.status})`,
+            wrap: true,
+            weight: "bold",
+            size: "xl",
+            color: "#222222",
+            margin: "none",
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: "時間",
+                wrap: true,
+                flex: 3,
+                size: "xs",
+                color: "#989898",
+              },
+              {
+                type: "text",
+                text: event.date,
+                wrap: true,
+                size: "xs",
+                margin: "md",
+                flex: 7,
+                color: "#222222",
+                align: "start",
+                style: "normal",
+              },
+            ],
+            margin: "xxl",
+          },
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              {
+                type: "text",
+                text: "詳細",
+                wrap: true,
+                flex: 3,
+                size: "xs",
+                color: "#989898",
+              },
+              {
+                type: "text",
+                text: event.description,
+                wrap: true,
+                size: "xs",
+                margin: "md",
+                color: "#0E71EB",
+                flex: 7,
+              },
+            ],
+            margin: "md",
+          },
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              {
+                type: "text",
+                text: "編集者",
+                wrap: true,
+                flex: 3,
+                size: "xs",
+                color: "#989898",
+              },
+              {
+                type: "text",
+                text: event.editor,
+                wrap: true,
+                size: "xs",
+                margin: "md",
+                flex: 7,
+                color: "#222222",
+              },
+            ],
+            margin: "md",
+          },
+        ],
+        spacing: "sm",
+      },
+    },
+  });
 };
