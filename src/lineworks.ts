@@ -67,7 +67,10 @@ const postMessages = async (
       }),
     }
   );
-  return res.status === 201;
+  console.log(JSON.stringify({ content }, null, 2));
+  console.log(JSON.stringify({ res, text: await res.text() }, null, 2));
+
+  if (res.status !== 201) throw new Error("error");
 };
 
 export const postText = async (

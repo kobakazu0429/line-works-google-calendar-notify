@@ -52,6 +52,10 @@ const NEXT_SYNC_TOKEN_KEY = "next_sync_token";
 const app = new Hono<MyEnv>().basePath("/api");
 
 app.use("*", logger());
+app.onError((error, c) => {
+  console.error(error);
+  return c.text("error", 500);
+});
 
 const refineEnv = (obj: any): MyEnv["Bindings"] => {
   return Object.fromEntries(
@@ -74,6 +78,12 @@ app.get("/cron", async (c) => {
   const pathname = "/api/calendar";
   const webhookUrl = new URL(pathname, base);
 
+  console.log("watchStart: ", {
+    GOOGLE_CALENDAR_ID: e.GOOGLE_CALENDAR_ID,
+    webhookUrl: webhookUrl.toString(),
+    WEB_HOOK_TOKEN: e.WEB_HOOK_TOKEN,
+  });
+
   await watchStart(
     $client,
     e.GOOGLE_CALENDAR_ID,
@@ -84,37 +94,85 @@ app.get("/cron", async (c) => {
   return c.text("ok");
 });
 
+app.get("/del", async (c) => {
+  const isForce = c.req.query("f") === "";
+
+  const e = refineEnv(process.env);
+
+  const $client = client(
+    e.GOOGLE_CLIENT_EMAIL,
+    e.GOOGLE_PRIVATE_KEY,
+    e.GOOGLE_PROJECT_NUMBER
+  );
+
+  const channelIds = await kv.keys(WATCH_ID_PREFIX + "*");
+
+  const deletedWatchKV = [] as string[];
+  const deletedKV = [] as string[];
+  const failed = [] as string[];
+
+  for await (const removeId of channelIds) {
+    const channel = await kv.get<Channel>(removeId);
+    if (!channel) throw new Error(`channel is not found: id=${removeId}`);
+    try {
+      await watchStop(
+        $client,
+        e.WEB_HOOK_TOKEN,
+        channel.resourceId,
+        channel.channelId
+      );
+      const result = await kv.del(removeId);
+      if (result === 0) throw new Error(`Not Found: ${removeId}`);
+      console.log("deleted(watch, kv): ", removeId);
+      deletedWatchKV.push(removeId);
+    } catch (error) {
+      // @ts-expect-error
+      if (isForce && error.code === 404) {
+        const result = await kv.del(removeId);
+        if (result === 0) throw new Error(`Not Found: ${removeId}`);
+        console.log("deleted(kv): ", removeId);
+        deletedKV.push(removeId);
+      } else {
+        console.log("delet failed: ", removeId);
+        failed.push(removeId);
+      }
+    }
+  }
+
+  return c.json({ deletedWatchKV, deletedKV, failed });
+});
+
 app.post("/calendar", async (c) => {
   console.log(Array.from(c.req.headers.entries()));
   const e = refineEnv(process.env);
 
   const xGoogChannelToken = c.req.headers.get("X-Goog-Channel-Token");
   if (e.WEB_HOOK_TOKEN !== xGoogChannelToken) {
-    return c.text(`X-Goog-Channel-Token is missing: ${xGoogChannelToken}`, 500);
+    throw new Error(`X-Goog-Channel-Token is missing: ${xGoogChannelToken}`);
   }
 
   const xGoogResourceState = c.req.headers.get("X-Goog-Resource-State");
   if (!validateXGoogResourceState(xGoogResourceState)) {
-    return c.text(
-      `X-Goog-Resource-State is not sync or exsits: ${xGoogResourceState}`,
-      500
+    throw new Error(
+      `X-Goog-Resource-State is not sync or exsits: ${xGoogResourceState}`
     );
   }
 
   const xGoogResourceId = c.req.headers.get("X-Goog-Resource-Id");
   if (!xGoogResourceId || xGoogResourceId === "") {
-    return c.text(`X-Goog-Resource-Id is not exsits: ${xGoogResourceId}`, 500);
+    throw new Error(`X-Goog-Resource-Id is not exsits: ${xGoogResourceId}`);
   }
+
   const xGoogChannelExpiration = c.req.headers.get("X-Goog-Channel-Expiration");
   if (!xGoogChannelExpiration || xGoogChannelExpiration === "") {
-    return c.text(
-      `X-Goog-Channel-Expiration is not exsits: ${xGoogChannelExpiration}`,
-      500
+    throw new Error(
+      `X-Goog-Channel-Expiration is not exsits: ${xGoogChannelExpiration}`
     );
   }
+
   const xGoogChannelId = c.req.headers.get("X-Goog-Channel-Id");
   if (!xGoogChannelId || xGoogChannelId === "") {
-    return c.text(`x-goog-channel-id is not exsits: ${xGoogChannelId}`, 500);
+    throw new Error(`x-goog-channel-id is not exsits: ${xGoogChannelId}`);
   }
 
   const $client = client(
@@ -131,20 +189,16 @@ app.post("/calendar", async (c) => {
     const removeIds = channelIds.filter((key) => key !== newId);
     for await (const removeId of removeIds) {
       const channel = await kv.get<Channel>(removeId);
-      if (channel) {
-        try {
-          await watchStop(
-            $client,
-            e.WEB_HOOK_TOKEN,
-            channel.resourceId,
-            channel.channelId
-          );
-          const result = await kv.del(removeId);
-          if (result === 0) throw new Error(`Not Found: ${removeId}`);
-        } catch (error) {
-          console.error(error);
-        }
-      }
+      if (!channel) throw new Error(`channel is not found: id=${removeId}`);
+
+      await watchStop(
+        $client,
+        e.WEB_HOOK_TOKEN,
+        channel.resourceId,
+        channel.channelId
+      );
+      const result = await kv.del(removeId);
+      if (result === 0) throw new Error(`Not Found: ${removeId}`);
     }
     const expiration = new Date(xGoogChannelExpiration).getTime();
     const ttlMilliseconds = expiration - Date.now();
@@ -158,42 +212,41 @@ app.post("/calendar", async (c) => {
       { px: ttlMilliseconds }
     );
   } else if (xGoogResourceState === "exists" /* web_hook */) {
-    try {
-      const nextSyncToken = await kv.get<string>(NEXT_SYNC_TOKEN_KEY);
+    const nextSyncToken = await kv.get<string>(NEXT_SYNC_TOKEN_KEY);
+    console.log({ nextSyncToken });
 
-      const token = getAuthToken({
-        clientId: e.LINEWORKS_CLIENT_ID,
-        clientSecret: e.LINEWORKS_CLIENT_SECRET,
-        privateKey: e.LINEWORKS_PRIVATE_KEY,
-        serviceAccount: e.LINEWORKS_SERVICE_ACCOUNT,
-      });
+    const token = getAuthToken({
+      clientId: e.LINEWORKS_CLIENT_ID,
+      clientSecret: e.LINEWORKS_CLIENT_SECRET,
+      privateKey: e.LINEWORKS_PRIVATE_KEY,
+      serviceAccount: e.LINEWORKS_SERVICE_ACCOUNT,
+    });
 
-      const $list = await list(
-        $client,
-        e.GOOGLE_CALENDAR_ID,
-        refineNextSyncToken(nextSyncToken)
-      );
+    const $list = await list(
+      $client,
+      e.GOOGLE_CALENDAR_ID,
+      refineNextSyncToken(nextSyncToken)
+    );
 
-      if ($list.data.items) {
-        for (const event of $list.data.items) {
-          await postCalendar(
-            e.LINEWORKS_BOT_ID,
-            e.LINEWORKS_CHANNEL_ID,
-            (
-              await token
-            ).access_token,
-            format(event)
-          );
-        }
+    console.log(JSON.stringify($list.data.items));
+
+    if ($list.data.items) {
+      for (const event of $list.data.items) {
+        await postCalendar(
+          e.LINEWORKS_BOT_ID,
+          e.LINEWORKS_CHANNEL_ID,
+          (
+            await token
+          ).access_token,
+          format(event)
+        );
       }
-
-      await kv.set(NEXT_SYNC_TOKEN_KEY, $list.data.nextSyncToken ?? "");
-      return c.text("ok");
-    } catch (error) {
-      console.error(error);
-      return c.text("error");
     }
+
+    await kv.set(NEXT_SYNC_TOKEN_KEY, $list.data.nextSyncToken ?? "");
   }
+
+  return c.text("ok");
 });
 
 export default handle(app);
