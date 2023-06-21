@@ -96,6 +96,7 @@ export const postCalendar = async (
 ) => {
   return postMessages(botId, channelId, token, {
     type: "flex",
+    altText: `${event.name}が${event.status}されました。`,
     contents: {
       type: "bubble",
       size: "giga",
