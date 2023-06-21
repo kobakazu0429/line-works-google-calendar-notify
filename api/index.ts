@@ -158,38 +158,42 @@ app.post("/calendar", async (c) => {
       { px: ttlMilliseconds }
     );
   } else if (xGoogResourceState === "exists" /* web_hook */) {
-    const nextSyncToken = await kv.get<string>(NEXT_SYNC_TOKEN_KEY);
+    try {
+      const nextSyncToken = await kv.get<string>(NEXT_SYNC_TOKEN_KEY);
 
-    const token = getAuthToken({
-      clientId: e.LINEWORKS_CLIENT_ID,
-      clientSecret: e.LINEWORKS_CLIENT_SECRET,
-      privateKey: e.LINEWORKS_PRIVATE_KEY,
-      serviceAccount: e.LINEWORKS_SERVICE_ACCOUNT,
-    });
+      const token = getAuthToken({
+        clientId: e.LINEWORKS_CLIENT_ID,
+        clientSecret: e.LINEWORKS_CLIENT_SECRET,
+        privateKey: e.LINEWORKS_PRIVATE_KEY,
+        serviceAccount: e.LINEWORKS_SERVICE_ACCOUNT,
+      });
 
-    const $list = await list(
-      $client,
-      e.GOOGLE_CALENDAR_ID,
-      refineNextSyncToken(nextSyncToken)
-    );
+      const $list = await list(
+        $client,
+        e.GOOGLE_CALENDAR_ID,
+        refineNextSyncToken(nextSyncToken)
+      );
 
-    if ($list.data.items) {
-      for (const event of $list.data.items) {
-        await postCalendar(
-          e.LINEWORKS_BOT_ID,
-          e.LINEWORKS_CHANNEL_ID,
-          (
-            await token
-          ).access_token,
-          format(event)
-        );
+      if ($list.data.items) {
+        for (const event of $list.data.items) {
+          await postCalendar(
+            e.LINEWORKS_BOT_ID,
+            e.LINEWORKS_CHANNEL_ID,
+            (
+              await token
+            ).access_token,
+            format(event)
+          );
+        }
       }
+
+      await kv.set(NEXT_SYNC_TOKEN_KEY, $list.data.nextSyncToken ?? "");
+      return c.text("ok");
+    } catch (error) {
+      console.error(error);
+      return c.text("error");
     }
-
-    await kv.set(NEXT_SYNC_TOKEN_KEY, $list.data.nextSyncToken ?? "");
   }
-
-  return c.text("ok");
 });
 
 export default handle(app);
