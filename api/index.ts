@@ -1,4 +1,5 @@
 import { Hono, type Env } from "hono";
+import { logger } from "hono/logger";
 import { handle } from "@hono/node-server/vercel";
 import { kv } from "@vercel/kv";
 import {
@@ -49,6 +50,8 @@ interface MyEnv extends Env {
 const NEXT_SYNC_TOKEN_KEY = "next_sync_token";
 
 const app = new Hono<MyEnv>().basePath("/api");
+
+app.use("*", logger());
 
 const refineEnv = (obj: any): MyEnv["Bindings"] => {
   return Object.fromEntries(
