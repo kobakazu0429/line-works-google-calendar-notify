@@ -157,7 +157,7 @@ export const postCalendar = async (
                 wrap: true,
                 size: "xs",
                 margin: "md",
-                color: "#0E71EB",
+                color: "#222222",
                 flex: 7,
               },
             ],
